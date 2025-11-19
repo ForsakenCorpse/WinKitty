@@ -1,74 +1,46 @@
-﻿# --- WinKitty.ps1 ---
+﻿# --- WinKitty.ps1 (V2 user-space) ---
 # WinKitty Project: auto-lock when the laptop lid is closed
-# Agent-only version: no service, only a user-level agent
-# - Windows Agent: WinKittyAgent (scheduled task ONLOGON, hidden process)
+# - User-space only (no admin required, no service, no registry machine-wide)
+# - Installs a small C# agent into %LOCALAPPDATA%\WinKitty
+# - Adds a shortcut to the user's Startup folder for persistence
 
-# Check for admin rights
-if (-not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
-).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
-    Write-Warning "Please run this script as Administrator."
-    return
-}
+$projectName = "WinKitty"
+$agentName   = "WinKittyAgent.exe"
 
-$projectName      = "WinKitty"
-$taskName         = "WinKittyAgent"
-$installDir       = Join-Path $env:ProgramFiles $projectName
-$agentExe         = Join-Path $installDir "WinKittyAgent.exe"
+# Installation directory in user profile (no admin rights needed)
+$installDir  = Join-Path $env:LOCALAPPDATA $projectName
+$agentExe    = Join-Path $installDir $agentName
 
-# Fancy ASCII logo (Hello Kitty style)
-$logo = @'
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⣿⣿⣿⣿⣿⠟⠋⠉⠀⠈⠛⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠋⠀⢀⠀⡀⠉⠻⠋⠀⣠⣴⣾⣿⣷⡀⠘⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠿⠟⠁⠀⡌⢂⠱⢠⠁⠄⠐⣿⣿⣿⣿⣿⣿⣷⠀⠸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⡟⠉⠀⢀⡀⠀⠉⠉⠙⠛⠟⠛⠉⠁⠀⣀⣀⣠⡄⢀⠘⡠⠌⠀⠁⠈⠀⠀⢀⠈⠉⠻⠛⠉⠀⡀⢀⠀⠙⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⠁⢠⣿⣿⣿⣿⣿⣷⣶⣤⣤⣴⣾⣿⣿⣿⣿⣿⠀⢀⠊⠔⡀⠀⡘⠀⠠⢌⠠⠘⠤⠀⠀⠀⠃⡰⠁⡌⠀⢹⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⡇⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠠⠉⡔⠠⠄⠀⠀⠐⡌⠤⢉⠤⠁⠀⠠⠀⢀⠱⠐⠀⣸⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣧⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣇⠀⠃⢀⠃⠜⠀⠀⠀⠠⠀⠜⠀⠀⠀⠀⠀⡀⠇⠄⢀⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⡀⠘⠟⢻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⣦⣤⣤⣴⣶⣿⣿⣦⣤⣤⣶⡀⠁⠌⡒⠐⠈⠀⠘⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣷⠀⢀⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣤⣤⣶⣿⡄⠘⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⡟⠀⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠃⠀⢈⣉⣀⣤⣬
-⣿⣿⣿⣿⠃⢠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⣿⣿⣿⣿⣿⣦⣶⣶⠀⢸⣿⣿⣿⣿
-⣿⣿⣿⣿⠀⢸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡅⠀⠀⢹⣿⣿⣿⣿⡟⠛⠀⠈⠛⠙⠛⢻
-⣿⣿⣿⣿⡀⠘⣿⡿⢿⣿⣿⣿⣿⡟⠋⠛⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⡀⢀⣾⣿⣿⣿⣿⣿⡾⠀⢸⣿⣿⣿⣿
-⡟⠋⠉⢁⡀⠀⢠⣤⣤⣿⣿⣿⣿⠀⠀⠀⣹⣿⣿⣿⣿⣿⣿⡟⠋⠉⠉⠻⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⠛⠃⠀⠿⢿⣿⣿⣿
-⣷⣾⣿⣿⣿⡄⠘⢿⡿⢿⣿⣿⣿⣷⣶⣶⣿⣿⣿⣿⣿⣿⣿⡄⠘⠑⠃⣀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠃⢀⣴⣦⣤⢀⣈⣿
-⣿⣿⣿⡿⠛⠉⡀⠀⢴⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠟⠉⡀⠀⠛⠿⢿⣿⣿⣿⣿
-⣿⣿⣿⣦⣴⣿⣿⣦⡀⠙⠋⢁⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠋⠁⢀⣾⣿⣷⣶⣦⡀⠙⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⡿⠋⢀⣤⣀⠀⠉⠛⠻⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠿⠛⠛⠋⠁⢀⣀⣤⣶⡀⠘⣿⣿⣿⣿⣿⣷⠀⢸⣿⣿
-⣿⣿⣿⣿⣿⣏⣠⣴⣿⣿⣿⡿⠓⠂⠀⠀⠀⠀⠀⠀⠁⢁⡀⣀⣀⣀⣠⣤⣤⠀⢀⡐⡀⠀⠻⣿⣿⣷⡄⠈⢻⣿⣿⣿⠇⠀⣾⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⠿⠛⠛⠁⠠⣴⣾⠟⠀⠀⢆⢂⠀⠸⣿⣿⣿⣿⣿⣿⣿⠇⠀⠄⡂⢅⠠⠀⠹⣿⣿⣿⣄⠀⠻⠟⠁⣠⣾⣿⣿⣿
-⣿⣿⣿⣿⣿⡟⠁⣠⣶⣶⣧⡀⠈⠏⠀⠀⠃⠈⠠⠁⠄⠈⠛⠛⠿⠛⠛⠁⠀⡰⠈⠐⠈⠒⠀⠀⠘⠟⠛⠉⢀⣠⣴⣾⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⡷⠀⣸⣿⣿⣿⠟⠀⣀⣤⣶⣶⣶⣤⡀⠈⢂⠰⠀⠤⠐⡀⠆⠅⠀⣀⣤⣶⣶⣶⣦⣄⠀⠰⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⡇⠀⣿⣿⣿⠁⢠⣾⣿⣿⣿⣿⣿⣿⣿⣦⠀⠐⠉⡄⠃⡌⠀⠀⣼⣿⣿⣿⣿⣿⣿⣿⣷⡄⠈⢻⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⡄⠈⠻⠇⢀⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⡆⠀⠡⠌⢂⠅⠀⣸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡄⠘⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣷⣤⠀⣸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⠀⠈⡄⠣⡀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣧⠀⢻⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⡐⠄⡃⠄⠀⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠀⣸⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⡀⠸⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠀⢀⠰⢁⠒⣈⠀⠘⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠃⢀⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⡀⠘⢿⣿⣿⣿⣿⣿⣿⠟⠀⠀⠈⠀⠀⠀⠀⠁⠀⠀⠻⢿⣿⣿⣿⣿⣿⠟⠁⢀⣾⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⡀⠉⠛⠛⠛⠉⢀⣠⣴⣶⣾⣿⣿⣿⣿⣶⣶⣦⣄⣀⠈⠉⠛⠉⢁⣠⣴⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣶⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
-'@
+# Startup folder for the current user
+$startupDir      = [Environment]::GetFolderPath("Startup")
+$shortcutPath    = Join-Path $startupDir "WinKittyAgent.lnk"
+$oldTaskName     = "WinKittyAgent"  # for cleanup of the old version if needed
 
-Write-Host $logo
-Write-Host "=== WinKitty Project (Agent only) ==="
+Write-Host "=== WinKitty (Agent only, user-space) ==="
 Write-Host "1 - Install / enable the agent"
 Write-Host "2 - Uninstall / remove the agent"
 $choice = Read-Host "Enter 1 or 2"
 
 switch ($choice) {
     1 {
-        # Create installation directory
-        if (-not (Test-Path $installDir)) { New-Item -ItemType Directory -Path $installDir | Out-Null }
-
-        # Remove existing scheduled task if present
-        if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+        # Optional cleanup: try to remove old scheduled task from previous version
+        try {
+            if (Get-ScheduledTask -TaskName $oldTaskName -ErrorAction SilentlyContinue) {
+                Unregister-ScheduledTask -TaskName $oldTaskName -Confirm:$false -ErrorAction SilentlyContinue
+            }
+        } catch {
+            # Ignorer les erreurs (si pas de droits ou tâche inexistante)
         }
 
-        # =========================
-        #  C# AGENT (user session)
-        # =========================
-        $agentCs = @"
+        # Create installation directory (user-space)
+        if (-not (Test-Path $installDir)) {
+            New-Item -ItemType Directory -Path $installDir | Out-Null
+        }
+
+# =========================
+#  C# AGENT (user session)
+# =========================
+       $agentCs = @"
 using System;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -134,6 +106,10 @@ namespace WinKitty
 
             private HiddenApplicationContext _ctx;
 
+            // Nouveaux champs pour gérer l'état
+            private bool _initialized = false;
+            private bool _lidClosed   = false;
+
             public MessageWindow(HiddenApplicationContext ctx)
             {
                 _ctx = ctx;
@@ -158,12 +134,25 @@ namespace WinKitty
 
                     if (ps.PowerSetting == GUID_LIDSWITCH_STATE_CHANGE)
                     {
-                        // On most laptops:
-                        // Data = 1 -> lid closed
-                        // Data = 0 -> lid open
-                        if (ps.Data == 1)
+                        // Data = 1 -> lid fermé
+                        // Data = 0 -> lid ouvert
+                        bool nowClosed = (ps.Data == 1);
+
+                        if (!_initialized)
                         {
-                            LockWorkStation();
+                            // Premier event : on initialise juste l'état, sans locker
+                            _lidClosed   = nowClosed;
+                            _initialized = true;
+                        }
+                        else
+                        {
+                            // On lock uniquement si on passe de ouvert -> fermé
+                            if (nowClosed && !_lidClosed)
+                            {
+                                LockWorkStation();
+                            }
+
+                            _lidClosed = nowClosed;
                         }
                     }
                 }
@@ -175,11 +164,11 @@ namespace WinKitty
 }
 "@
 
-        # Save .cs
+        # Save .cs in TEMP
         $agentCsFile = Join-Path $env:TEMP "WinKittyAgent.cs"
         $agentCs | Out-File -FilePath $agentCsFile -Encoding UTF8
 
-        # Locate csc.exe
+        # Locate csc.exe (user needs .NET Framework 4.x dev tools, usually present)
         $cscPath = Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"
         if (-not (Test-Path $cscPath)) {
             $cscPath = Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe"
@@ -201,32 +190,37 @@ namespace WinKitty
             return
         }
 
-        # Create scheduled task ONLOGON
-        $escapedAgentExe = $agentExe.Replace('"','\"')
-        schtasks.exe /Create `
-            /TN "$taskName" `
-            /TR "`"$escapedAgentExe`"" `
-            /SC ONLOGON `
-            /RL HIGHEST `
-            /F | Out-Null
+        # Create a shortcut in the user's Startup folder for persistence
+        try {
+            $shell    = New-Object -ComObject WScript.Shell
+            $shortcut = $shell.CreateShortcut($shortcutPath)
+            $shortcut.TargetPath       = $agentExe
+            $shortcut.WorkingDirectory = $installDir
+            $shortcut.WindowStyle      = 7  # Minimized / hidden
+            $shortcut.Description      = "WinKitty Agent - auto-lock on lid close"
+            $shortcut.Save()
+        } catch {
+            Write-Warning "Failed to create Startup shortcut: $($_.Exception.Message)"
+        }
 
-        # Start agent immediately
-        Start-Process -FilePath $agentExe
+        # Start agent immediately in current session
+        Start-Process -FilePath $agentExe | Out-Null
 
-        Write-Host "WinKitty installation completed (agent-only mode)."
-        Write-Host "Agent: scheduled task $taskName + running in current session."
-        Write-Host "Your session will lock automatically whenever the lid is closed."
+        Write-Host "WinKitty installation completed (user-space agent)."
+        Write-Host "Agent path : $agentExe"
+        Write-Host "Startup    : $shortcutPath"
+        Write-Host "Your session will lock automatically whenever the lid is closed (for this user)."
     }
 
     2 {
-        # Uninstall agent
-        if (Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue) {
-            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-        }
-
-        # Kill running agent process
+        # Try to kill running agent process
         Get-Process WinKittyAgent -ErrorAction SilentlyContinue | ForEach-Object {
             try { $_.Kill() } catch {}
+        }
+
+        # Remove Startup shortcut
+        if (Test-Path $shortcutPath) {
+            Remove-Item $shortcutPath -Force -ErrorAction SilentlyContinue
         }
 
         # Remove installation directory
@@ -234,7 +228,16 @@ namespace WinKitty
             Remove-Item $installDir -Recurse -Force -ErrorAction SilentlyContinue
         }
 
-        Write-Host "WinKitty has been uninstalled (agent + files removed)."
+        # Optional cleanup of legacy scheduled task
+        try {
+            if (Get-ScheduledTask -TaskName $oldTaskName -ErrorAction SilentlyContinue) {
+                Unregister-ScheduledTask -TaskName $oldTaskName -Confirm:$false -ErrorAction SilentlyContinue
+            }
+        } catch {
+            # Ignorer si pas de droits
+        }
+
+        Write-Host "WinKitty has been uninstalled (agent + shortcut + files removed)."
     }
 
     Default {

@@ -1,19 +1,4 @@
 ```text
-
-
- █████   ███   █████  ███             █████   ████  ███   █████     █████              
-▒▒███   ▒███  ▒▒███  ▒▒▒             ▒▒███   ███▒  ▒▒▒   ▒▒███     ▒▒███               
- ▒███   ▒███   ▒███  ████  ████████   ▒███  ███    ████  ███████   ███████   █████ ████
- ▒███   ▒███   ▒███ ▒▒███ ▒▒███▒▒███  ▒███████    ▒▒███ ▒▒▒███▒   ▒▒▒███▒   ▒▒███ ▒███ 
- ▒▒███  █████  ███   ▒███  ▒███ ▒███  ▒███▒▒███    ▒███   ▒███      ▒███     ▒███ ▒███ 
-  ▒▒▒█████▒█████▒    ▒███  ▒███ ▒███  ▒███ ▒▒███   ▒███   ▒███ ███  ▒███ ███ ▒███ ▒███ 
-    ▒▒███ ▒▒███      █████ ████ █████ █████ ▒▒████ █████  ▒▒█████   ▒▒█████  ▒▒███████ 
-     ▒▒▒   ▒▒▒      ▒▒▒▒▒ ▒▒▒▒ ▒▒▒▒▒ ▒▒▒▒▒   ▒▒▒▒ ▒▒▒▒▒    ▒▒▒▒▒     ▒▒▒▒▒    ▒▒▒▒▒███ 
-                                                                              ███ ▒███ 
-                                                                             ▒▒██████  
-                                                                              ▒▒▒▒▒▒   
-```
-```text
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⣿⣿⣿⣿⣿⠟⠋⠉⠀⠈⠛⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠋⠀⢀⠀⡀⠉⠻⠋⠀⣠⣴⣾⣿⣷⡀⠘⣿⣿⣿⣿⣿⣿⣿⣿⣿
 ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠿⠟⠁⠀⡌⢂⠱⢠⠁⠄⠐⣿⣿⣿⣿⣿⣿⣷⠀⠸⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿
@@ -48,6 +33,19 @@
 
 # **WinKitty – Auto Lock on Lid Close (Modern Standby Friendly)**
 
+### **WinKitty — The Instant-Lock Guard Cat for Windows**
+
+WinKitty is a small “digital guard cat” for Windows.
+Like a feline, it stays discreet, watches silently, and reacts instantly at the slightest movement: the moment you close your laptop lid, it locks your session to protect you from opportunistic access, human mistakes, and social-engineering attempts.
+
+Lightweight.
+Invisible.
+Fast as a cat’s reflex.
+
+---
+
+## **Overview**
+
 **WinKitty** is a lightweight Windows agent that automatically **locks your session when the laptop lid is closed**, even on devices using **Modern Standby (S0 Low Power Idle)**.
 
 Unlike traditional sleep-based locking, WinKitty:
@@ -61,13 +59,13 @@ This keeps your device secure **without breaking S0 behavior**.
 
 ---
 
-### **How It Works**
+## **How It Works**
 
 WinKitty operates through a hidden background agent:
 
 * Runs only in the **current user session**
 * Listens for the **GUID_LIDSWITCH_STATE_CHANGE** power event
-* When the lid is detected as “closed”, it calls:
+* When the lid is detected as "closed", it calls:
 
 ```
 LockWorkStation()
@@ -79,11 +77,11 @@ LockWorkStation()
 
 ---
 
-### **Installation**
+## **Installation**
 
-Run the PowerShell installer **as Administrator**:
+Run the PowerShell installer:
 
-```bash
+```powershell
 .\WinKitty.ps1
 ```
 
@@ -99,19 +97,21 @@ The script will:
 * Install it to:
 
 ```
-C:\Program Files\WinKitty\
+%LOCALAPPDATA%\WinKitty\
 ```
 
-* Create a scheduled task that starts the agent at user logon
-* Start the agent immediately
+* Add a shortcut to the **Startup** folder for persistence
+* Launch the agent in the current session
+
+**No Administrator rights required.**
 
 ---
 
-### **Uninstall**
+## **Uninstall**
 
 Run the script again:
 
-```bash
+```powershell
 .\WinKitty.ps1
 ```
 
@@ -124,19 +124,19 @@ Choose:
 This will:
 
 * Stop the running agent
-* Remove the scheduled task
-* Delete the installation folder
+* Remove the Startup shortcut
+* Delete the installation directory
 
 ---
 
-### **Requirements**
+## **Requirements**
 
 * Windows 10 or Windows 11
 * .NET Framework 4.x (preinstalled on all supported systems)
 
 ---
 
-### **Why Modern Standby (S0) Compatible?**
+## **Why Modern Standby (S0) Compatible?**
 
 Most modern laptops no longer support legacy S3 sleep.
 They use **Modern Standby (S0 Low Power Idle)** instead.
@@ -145,8 +145,8 @@ In S0:
 
 * The system stays partially active
 * Network stays connected
-* Apps can continue running
-* Sleep/wake is instant
+* Applications stay alive
+* Wake is instant
 
 However:
 
@@ -156,14 +156,12 @@ WinKitty solves that, **without disabling S0 or harming battery life**.
 
 ---
 
-### **License**
+## **License**
 
 Free to use and modify.
 
 ---
 
-### **Author**
-
+## **Author**
 by ForsakenCorpse, built to provide a simple, reliable, Modern Standby–friendly auto-lock solution.
-
 
